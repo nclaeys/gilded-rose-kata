@@ -22,6 +22,9 @@
     [(= "Sulfuras, Hand of Ragnaros" :name)
      [:change-sell-in 0]]
 
+    [(re-find #"(?i)conjured" :name)
+     [:double-change-quality]]
+
     [(<= 0 :sell-in)
      [:change-quality -1]]
 
@@ -59,9 +62,12 @@
   [[item modifiers] [pred action]]
   (if (eval-predicate item pred)
     (case (first action)
+      :double-change-quality [item (conj modifiers :double-change-quality)]
       :change-quality (if (:changed-quality modifiers)
                         [item modifiers]
-                        [(update-in item [:quality] + (second action))
+                        [(update-in item [:quality] + (if (:double-change-quality modifiers)
+                                                        (* 2 (second action))
+                                                        (second action)))
                          (conj modifiers :changed-quality)])
       :change-sell-in [(update-in item [:sell-in] + (second action))
                        modifiers]

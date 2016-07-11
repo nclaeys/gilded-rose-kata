@@ -14,7 +14,11 @@
    ["Backstage passes to a TAFKAL80ETC concert" 9 20] [8 22]
    ["Backstage passes to a TAFKAL80ETC concert" 2 20] [1 23]
    ;; original core fails this test. Is this bug or feature?
-   ["Backstage passes to a TAFKAL80ETC concert" 2 50] [1 50]})
+   ["Backstage passes to a TAFKAL80ETC concert" 2 50] [1 50]
+
+   ["Conjured +5 Dexterity Vest" 10 20] [9 18]
+   ["Conjured +5 Dexterity Vest" 0 20] [-1 16]
+   ["Conjured +5 Dexterity Vest" 0 1] [-1 0]})
 
 (deftest basic-cases
   (doseq [[initial [sell-in quality]] cases
