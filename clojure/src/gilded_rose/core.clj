@@ -1,44 +1,91 @@
 (ns gilded-rose.core)
 
-(defn update-quality [items]
-  (map
-    (fn[item] (cond
-      (and (< (:sell-in item) 0) (= "Backstage passes to a TAFKAL80ETC concert" (:name item)))
-        (merge item {:quality 0})
-      (or (= (:name item) "Aged Brie") (= (:name item) "Backstage passes to a TAFKAL80ETC concert"))
-        (if (and (= (:name item) "Backstage passes to a TAFKAL80ETC concert") (>= (:sell-in item) 5) (< (:sell-in item) 10))
-          (merge item {:quality (inc (inc (:quality item)))})
-          (if (and (= (:name item) "Backstage passes to a TAFKAL80ETC concert") (>= (:sell-in item) 0) (< (:sell-in item) 5))
-            (merge item {:quality (inc (inc (inc (:quality item))))})
-            (if (< (:quality item) 50)
-              (merge item {:quality (inc (:quality item))})
-              item)))
-      (< (:sell-in item) 0)
-        (if (= "Backstage passes to a TAFKAL80ETC concert" (:name item))
-          (merge item {:quality 0})
-          (if (or (= "+5 Dexterity Vest" (:name item)) (= "Elixir of the Mongoose" (:name item)))
-            (merge item {:quality (- (:quality item) 2)})
-            item))
-      (or (= "+5 Dexterity Vest" (:name item)) (= "Elixir of the Mongoose" (:name item)))
-        (merge item {:quality (dec (:quality item))})
-      :else item))
-  (map (fn [item]
-      (if (not= "Sulfuras, Hand of Ragnaros" (:name item))
-        (merge item {:sell-in (dec (:sell-in item))})
-        item))
-  items)))
+(def rules
+  '[[true
+     [:change-sell-in -1]]
+
+    [(and (= "Backstage passes to a TAFKAL80ETC concert" :name) (< :sell-in 0) )
+     [:set-quality 0]]
+
+    [(= :name "Aged Brie")
+     [:change-quality 1]]
+
+    [(and (= "Backstage passes to a TAFKAL80ETC concert" :name) (<= 0 :sell-in 4))
+     [:change-quality 3]]
+
+    [(and (= "Backstage passes to a TAFKAL80ETC concert" :name) (<= 5 :sell-in 9))
+     [:change-quality 2]]
+
+    [(and (= "Backstage passes to a TAFKAL80ETC concert" :name) (<= 10 :sell-in))
+     [:change-quality 1]]
+
+    [(= "Sulfuras, Hand of Ragnaros" :name)
+     [:change-sell-in 0]]
+
+    [(<= 0 :sell-in)
+     [:change-quality -1]]
+
+    [(< :sell-in 0)
+     [:change-quality -2]]
+
+    [(< :quality 0)
+     [:set-quality 0]]
+
+    [(and (< 50 :quality))
+     [:set-quality 50]]
+
+    [(= "Sulfuras, Hand Of Ragnaros" :name)
+     [:set-quality 80]]])
+
+(def allowed-predicates '#{and or not < > <= >= = not= re-find})
+
+(defn and-f [& args] (every? identity args))
+
+(defn or-f [& args] (some identity args))
+
+(def mapped-predicates {'and and-f 'or or-f})
+
+(defn eval-predicate
+  [item p]
+  (cond
+    (list? p) (apply (eval-predicate item (first p))
+                     (map (partial eval-predicate item) (rest p)))
+    (keyword? p) (get item p)
+    (mapped-predicates p) (mapped-predicates p)
+    (symbol? p) (if (allowed-predicates p) (resolve p) (throw ("Unsupported predicate")))
+    :else p))
+
+(defn apply-action
+  [[item modifiers] [pred action]]
+  (if (eval-predicate item pred)
+    (case (first action)
+      :change-quality (if (:changed-quality modifiers)
+                        [item modifiers]
+                        [(update-in item [:quality] + (second action))
+                         (conj modifiers :changed-quality)])
+      :change-sell-in [(update-in item [:sell-in] + (second action))
+                       modifiers]
+      :set-quality [(assoc item :quality (second action))
+                    modifiers])
+    [item modifiers]))
+
+(defn update-item
+  [item]
+  (-> (reduce apply-action [item #{}] rules)
+      (first)))
+
+(defn update-quality
+  [items]
+  (map update-item items))
 
 (defn item [item-name, sell-in, quality]
   {:name item-name, :sell-in sell-in, :quality quality})
 
-(defn update-current-inventory[]
-  (let [inventory 
-    [
-      (item "+5 Dexterity Vest" 10 20)
-      (item "Aged Brie" 2 0)
-      (item "Elixir of the Mongoose" 5 7)
-      (item "Sulfuras, Hand Of Ragnaros" 0 80)
-      (item "Backstage passes to a TAFKAL80ETC concert" 15 20)
-    ]]
-    (update-quality inventory)
-    ))
+(defn update-current-inventory []
+  (let [inventory
+        [(item "+5 Dexterity Vest" 10 20)
+         (item "Aged Brie" 2 0)
+         (item "Elixir of the Mongoose" 5 7)
+         (item "Sulfuras, Hand Of Ragnaros" 0 80)
+         (item "Backstage passes to a TAFKAL80ETC concert" 15 20)]]
+    (update-quality inventory)))
